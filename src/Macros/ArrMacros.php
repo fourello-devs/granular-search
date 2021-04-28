@@ -17,7 +17,7 @@ class ArrMacros
         return function (array $haystack, string $needle){
             foreach ($haystack as $key => $value) {
                 if($key === $needle) {
-                    return empty((string) $value) === false;
+                    return empty($value) === false;
                 }
             }
             return false;

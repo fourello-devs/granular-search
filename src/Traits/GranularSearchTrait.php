@@ -40,9 +40,10 @@ trait GranularSearchTrait
      * @param string $prepend_key
      * @param bool $ignore_q
      * @param bool $force_or
+     * @param bool $force_like
      * @return Model|Builder
      */
-    public static function getGranularSearch($request, $model, string $table_name, array $excluded_keys = [], array $like_keys = [], string $prepend_key = '', bool $ignore_q = false, bool $force_or = false)
+    public static function getGranularSearch($request, $model, string $table_name, array $excluded_keys = [], array $like_keys = [], string $prepend_key = '', bool $ignore_q = false, bool $force_or = false, bool $force_like = false)
     {
         self::validateRequest($request);
         self::validateTableName($table_name);
@@ -75,7 +76,7 @@ trait GranularSearchTrait
             $exact_keys = array_values(array_diff($exact_keys, $like_keys));
         }
 
-        $model = $model->where(function ($query) use ($force_or, $accept_q, $data, $like_keys, $exact_keys) {
+        $model = $model->where(function (Builder $query) use ($force_like, $force_or, $accept_q, $data, $like_keys, $exact_keys) {
             // 'LIKE' SEARCHING
             if (empty($like_keys) === false) {
                 // If 'q' is present and is filled, proceed with all-column search
@@ -84,13 +85,13 @@ trait GranularSearchTrait
                     foreach ($like_keys as $col) {
                         $value = Arr::get($data, $col, $search);
                         if(is_array($value)){
-                            $query = $query->orWhere(function ($q) use ($value, $col) {
+                            $query = $query->orWhere(function (Builder $q) use ($col, $value) {
                                 foreach ($value as $s) {
-                                    $q->orWhere($col, 'LIKE', self::getLikeString($s));
+                                    self::setQueryWhereCondition($q, $col, $s, true, 'or');
                                 }
                             });
                         }else{
-                            $query = $query->orWhere($col, 'LIKE', self::getLikeString($value));
+                            self::setQueryWhereCondition($query, $col, $value, true, 'or');
                         }
                     }
                 }
@@ -99,14 +100,15 @@ trait GranularSearchTrait
                 else {
                     foreach ($like_keys as $col) {
                         if (Arr::isFilled($data, $col)) {
-                            if (is_array($data[$col])) {
-                                $query = $query->where(function ($q) use ($data, $col) {
-                                    foreach ($data[$col] as $d) {
-                                        $q->orWhere($col, 'LIKE', self::getLikeString($d));
+                            $search = $data[$col];
+                            if (is_array($search)) {
+                                $query = $query->where(function (Builder $q) use ($col, $search) {
+                                    foreach ($search as $s) {
+                                        self::setQueryWhereCondition($q, $col, $s, true, 'or');
                                     }
                                 });
                             } else {
-                                $query = $query->where($col, 'LIKE', self::getLikeString($data[$col]));
+                                self::setQueryWhereCondition($query, $col, $search, true);
                             }
                         }
                     }
@@ -118,20 +120,38 @@ trait GranularSearchTrait
                 $search = $data[self::$q_alias];
                 foreach ($exact_keys as $col) {
                     $value = Arr::get($data, $col, $search);
-                    if(is_array($value)){
-                        $query = $query->orWhereIn($col, $value);
-                    }else{
-                        $query = $query->orWhere($col, $value);
+                    if(is_array($value)) {
+                        if($force_like) {
+                            $query = $query->orWhere(function (Builder $q) use ($col, $value) {
+                                foreach ($value as $s){
+                                    self::setQueryWhereCondition($q, $col, $s, true, 'or');
+                                }
+                            });
+                        } else {
+                            $query = $query->orWhereIn($col, $value);
+                        }
+                    } else {
+                        self::setQueryWhereCondition($query, $col, $value, $force_like, 'or');
                     }
                 }
             }
-            else{
+            else {
                 foreach ($exact_keys as $col) {
                     if (Arr::isFilled($data, $col)) {
-                        if (is_array($data[$col])) {
-                            $query = $force_or ? $query->orWhereIn($col, $data[$col]) : $query->whereIn($col, $data[$col]);
+                        $search = $data[$col];
+                        if (is_array($search)) {
+                            if($force_like){
+                                $condition = static function (Builder $q) use ($col, $search) {
+                                    foreach ($search as $s){
+                                        self::setQueryWhereCondition($q, $col, $s, true, 'or');
+                                    }
+                                };
+                                $query = $query->where($condition, null, null, $force_or ? 'or' : 'and');
+                            } else {
+                                $query = $query->whereIn($col, $search, $force_or ? 'or' : 'and');
+                            }
                         } else {
-                            $query = $force_or ? $query->orWhere($col, $data[$col]) : $query->where($col, $data[$col]);
+                            self::setQueryWhereCondition($query, $col, $search, $force_like, $force_or ? 'or' : 'and');
                         }
                     }
                 }
@@ -220,11 +240,15 @@ trait GranularSearchTrait
             if(empty($value)) {
                 continue;
             }
-            if(Str::startsWith($key, $prepend)){
-                $result[Str::after($key, $prepend)] = $value;
+            if(Str::startsWith($key, $prepend)) {
+                $key = Str::after($key, $prepend);
+                if($ignore_q === true && $key === self::$q_alias) {
+                    continue;
+                }
+                $result[$key] = $value;
             }
-            else if ($key === self::$q_alias && $ignore_q === false){
-                $result[self::$q_alias] = $value;
+            else if ($key === self::$q_alias && $ignore_q === false) {
+                $result[$key] = $value;
             }
         }
 
@@ -285,12 +309,18 @@ trait GranularSearchTrait
      * @param string $str
      * @return string
      */
-    public static function getLikeString(string $str){
+    public static function getLikeString(string $str) {
         $result = '%';
         foreach (str_split($str) as $s){
             $result .= $s . '%';
         }
         return $result;
+    }
+
+    public static function setQueryWhereCondition(Builder &$query, string $col, string $str, ?bool $is_like_search = false, ?string $boolean = 'and') {
+        $operator = $is_like_search ? 'LIKE' : '=';
+        $str = $is_like_search ? self::getLikeString($str) : $str;
+        $query->whereRaw(implode(' ', [$col, $operator, '?']), [$str], $boolean);
     }
 
     /**
