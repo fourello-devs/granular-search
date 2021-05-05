@@ -309,18 +309,33 @@ trait GranularSearchTrait
      * @param string $str
      * @return string
      */
-    public static function getLikeString(string $str) {
-        $result = '%';
+    public static function getLikeString(string $str): string
+    {
+        $result = '';
         foreach (str_split($str) as $s){
-            $result .= $s . '%';
+            if (ctype_alnum($s)){
+                $result .= $s . '%';
+            }
         }
-        return $result;
+        return empty($result) ? '' : '%' . $result;
     }
 
-    public static function setQueryWhereCondition(Builder &$query, string $col, string $str, ?bool $is_like_search = false, ?string $boolean = 'and') {
+    /**
+     * Set where condition of query.
+     *
+     * @param Builder $query
+     * @param string $col
+     * @param string $str
+     * @param bool|null $is_like_search
+     * @param string|null $boolean
+     */
+    public static function setQueryWhereCondition(Builder &$query, string $col, string $str, ?bool $is_like_search = false, ?string $boolean = 'and'): void
+    {
         $operator = $is_like_search ? 'LIKE' : '=';
         $str = $is_like_search ? self::getLikeString($str) : $str;
-        $query->whereRaw(implode(' ', [$col, $operator, '?']), [$str], $boolean);
+        if (empty($str) === false) {
+            $query->whereRaw(implode(' ', [$col, $operator, '?']), [$str], $boolean);
+        }
     }
 
     /**
