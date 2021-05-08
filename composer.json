@@ -19,6 +19,9 @@
         "orchestra/testbench": "~5|~6"
     },
     "autoload": {
+        "files": [
+            "helpers/CustomHelpers.php"
+        ],
         "psr-4": {
             "FourelloDevs\\GranularSearch\\": "src/"
         }
