@@ -43,7 +43,7 @@ trait GranularSearchTrait
      * @param bool $force_like
      * @return Model|Builder
      */
-    public static function getGranularSearch($request, $model, string $table_name, array $excluded_keys = [], array $like_keys = [], string $prepend_key = '', bool $ignore_q = false, bool $force_or = false, bool $force_like = false)
+    public static function getGranularSearch($request, $model, string $table_name, array $excluded_keys = [], array $like_keys = [], string $prepend_key = '', bool $ignore_q = FALSE, bool $force_or = FALSE, bool $force_like = FALSE)
     {
         self::validateRequest($request);
         self::validateTableName($table_name);
@@ -78,7 +78,7 @@ trait GranularSearchTrait
 
         $model = $model->where(function (Builder $query) use ($force_like, $force_or, $accept_q, $data, $like_keys, $exact_keys) {
             // 'LIKE' SEARCHING
-            if (empty($like_keys) === false) {
+            if (empty($like_keys) === FALSE) {
                 // If 'q' is present and is filled, proceed with all-column search
                 if($accept_q){
                     $search = $data[self::$q_alias];
@@ -201,7 +201,7 @@ trait GranularSearchTrait
      * @param bool $ignore_q
      * @return array
      */
-    private static function prepareData(array $request, $excluded_keys = [], $prepend_key = '', $ignore_q = false): array
+    private static function prepareData(array $request, $excluded_keys = [], $prepend_key = '', $ignore_q = FALSE): array
     {
         if(is_array($request) && (empty($request) || Arr::isAssoc($request)))
         {
@@ -219,7 +219,7 @@ trait GranularSearchTrait
      * @param bool $ignore_q
      * @return array
      */
-    public static function extractPrependedKeys($data, string $prepend_key = '', bool $ignore_q = false): array
+    public static function extractPrependedKeys($data, string $prepend_key = '', bool $ignore_q = FALSE): array
     {
         if(is_subclass_of($data, Request::class)) {
             $data = $data->all();
@@ -229,7 +229,7 @@ trait GranularSearchTrait
             return $data;
         }
 
-        if(empty($data) === false && Arr::isAssoc($data) === false) {
+        if(empty($data) === FALSE && Arr::isAssoc($data) === FALSE) {
             throw new RuntimeException('$data must be an associative array.');
         }
 
@@ -247,7 +247,7 @@ trait GranularSearchTrait
                 }
                 $result[$key] = $value;
             }
-            else if ($key === self::$q_alias && $ignore_q === false) {
+            else if ($key === self::$q_alias && $ignore_q === FALSE) {
                 $result[$key] = $value;
             }
         }
@@ -274,7 +274,7 @@ trait GranularSearchTrait
      */
     private static function validateTableName(string $table_name): void
     {
-        if(Schema::hasTable($table_name) === false){
+        if(Schema::hasTable($table_name) === FALSE){
             throw new RuntimeException('Table name provided does not exist in database.');
         }
     }
@@ -298,7 +298,7 @@ trait GranularSearchTrait
      */
     public static function validateRequest($request): void
     {
-        if((is_array($request) && empty($request) === false && Arr::isAssoc($request) === false) && is_subclass_of($request, Request::class) === false){
+        if((is_array($request) && empty($request) === FALSE && Arr::isAssoc($request) === FALSE) && is_subclass_of($request, Request::class) === FALSE){
             throw new RuntimeException('$request must be an array or an instance/subclass of Illuminate/Http/Request.');
         }
     }
@@ -329,11 +329,11 @@ trait GranularSearchTrait
      * @param bool|null $is_like_search
      * @param string|null $boolean
      */
-    public static function setQueryWhereCondition(Builder &$query, string $col, string $str, ?bool $is_like_search = false, ?string $boolean = 'and'): void
+    public static function setQueryWhereCondition(Builder &$query, string $col, string $str, ?bool $is_like_search = FALSE, ?string $boolean = 'and'): void
     {
         $operator = $is_like_search ? 'LIKE' : '=';
         $str = $is_like_search ? self::getLikeString($str) : $str;
-        if (empty($str) === false) {
+        if (empty($str) === FALSE) {
             $query->whereRaw(implode(' ', [$col, $operator, '?']), [$str], $boolean);
         }
     }
@@ -362,7 +362,7 @@ trait GranularSearchTrait
                 return (bool) preg_grep("/$key/", $request->keys());
             }
         }
-        return false;
+        return FALSE;
     }
 
     /**
@@ -400,7 +400,7 @@ trait GranularSearchTrait
                 return $request->filled($key);
             }
         }
-        return false;
+        return FALSE;
     }
 
     /**
@@ -437,6 +437,6 @@ trait GranularSearchTrait
             }
         }
 
-        return false;
+        return FALSE;
     }
 }
