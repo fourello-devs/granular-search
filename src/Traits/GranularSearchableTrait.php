@@ -7,6 +7,7 @@ use BadMethodCallException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -109,6 +110,7 @@ trait GranularSearchableTrait
         }
 
         $mentioned_models[] = static::class;
+
         $query = $query->granularSearch($request, '', $ignore_q, $force_or, $force_like);
 
         if ($ignore_relationships === FALSE) {
@@ -157,10 +159,12 @@ trait GranularSearchableTrait
 
             $related = $this->$relation()->getRelated();
 
-            $is_searchable = $related->isSearchable($params, $ignore_q);
+            if (count($params) === 1 && static::hasQ($params) && in_array(get_class($related), $mentioned_models, TRUE)) {
+                continue;
+            }
 
-            if($is_searchable) {
-                $query->ofRelationFromRequest($params, $relation, '', $ignore_q, $force_or, $force_like, $mentioned_models);
+            if($related->isSearchable($params, $ignore_q, $mentioned_models)) {
+                $query = $query->ofRelationFromRequest($params, $relation, '', $ignore_q, $force_or, $force_like, $mentioned_models);
             }
         }
 
@@ -323,12 +327,12 @@ trait GranularSearchableTrait
 
             $params = static::extractPrependedKeys($request, $prepend_key, $ignore_q);
 
-            if(count($params) === 1 && static::hasQ($params) && in_array($this, $mentioned_models, true)){
-                continue;
+            if (count($params) === 1 && static::hasQ($params) && in_array(get_class($this), $mentioned_models, TRUE) === FALSE) {
+                return TRUE;
             }
 
-            if (empty($params) === FALSE) {
-                return $this->$relation()->getRelated()->isSearchable($params, $ignore_q, $mentioned_models);
+            if (empty($params) === FALSE && $this->$relation()->getRelated()->isSearchable($params, $ignore_q, $mentioned_models)) {
+                return TRUE;
             }
         }
 
