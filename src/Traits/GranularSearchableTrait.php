@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -97,6 +98,8 @@ trait GranularSearchableTrait
         }
 
         $mentioned_models[] = static::class;
+
+        Log::info('Relation Tracing @ ' . static::class, $mentioned_models);
 
         $query = $query->granularSearch($request, '', $ignore_q, $force_or, $force_like);
 
