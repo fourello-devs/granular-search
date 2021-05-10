@@ -421,7 +421,7 @@ class GranularSearch
      *
      * @param mixed $object_or_class
      */
-    public function addToMentionsModels($object_or_class): void
+    public function addToMentionedModels($object_or_class): void
     {
         $this->mentioned_models[] = get_class_name_from_object($object_or_class);
     }

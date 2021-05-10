@@ -17,7 +17,7 @@ use RuntimeException;
  * @package FourelloDevs\GranularSearch\Traits
  *
  * @method static Builder granularSearch($request, string $prepend_key, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
- * @method static Builder search(Builder $query, $request, ?bool $ignore_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+ * @method static Builder search(Builder $query, $request, ?bool $q_search_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
  * @method static Builder ofRelationsFromRequest($request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
  * @method static Builder ofRelationFromRequest($request, string $relation, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
  * @method static Builder ofRelation(string $relation, $key, $value, bool $force_or = FALSE)
@@ -78,16 +78,14 @@ trait GranularSearchableTrait
      *
      * @param Builder $query
      * @param Request|array|string $request
-     * @param bool|null $ignore_relationships
+     * @param bool|null $q_search_relationships
      * @param bool|null $ignore_q
      * @param bool|null $force_or
      * @param bool|null $force_like
      * @return mixed
      */
-    public function scopeSearch(Builder $query, $request, ?bool $ignore_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+    public function scopeSearch(Builder $query, $request, ?bool $q_search_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
     {
-        Log::info('started');
-
         granular_search()->setInitialModel($this);
 
         if(is_request_instance($request)) {
@@ -100,20 +98,13 @@ trait GranularSearchableTrait
             $request = [granular_search()->getQAlias() => array_values($request)];
         }
 
-        granular_search()->addToMentionsModels($this);
+        granular_search()->addToMentionedModels($this);
 
-        Log::info('Relation Tracing @ ' . static::class, granular_search()->getMentionedModels());
-
-        $query = $query->granularSearch($request, '', $ignore_q, $force_or, $force_like);
-
-        if ($ignore_relationships === FALSE) {
-            $query = $query->ofRelationsFromRequest($request, $ignore_q, $force_or, $force_like);
-        }
+        $query = $query->granularSearch($request, '', $ignore_q, $force_or, $force_like)->ofRelationsFromRequest($request, $q_search_relationships === FALSE ? TRUE : $ignore_q, $force_or, $force_like);
 
         if (granular_search()->isInitialModel($this)) {
             granular_search()->clearMentions();
             granular_search()->clearInitialModel();
-            Log::info('ended');
         }
 
         return $query;
