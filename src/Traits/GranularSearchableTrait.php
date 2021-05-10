@@ -26,8 +26,6 @@ use RuntimeException;
  */
 trait GranularSearchableTrait
 {
-    use GranularSearchTrait;
-
     /**
      * @var string[]
      * @label Array of keys to exclude during filtering
@@ -88,7 +86,7 @@ trait GranularSearchableTrait
      */
     public function scopeSearch(Builder $query, $request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?bool $ignore_relationships = FALSE, ?array &$mentioned_models = [])
     {
-        if(is_subclass_of($request, Request::class)) {
+        if(is_request_instance($request)) {
             $request = $request->all();
         }
         else if(is_string($request)) {
@@ -122,7 +120,7 @@ trait GranularSearchableTrait
      */
     public function scopeGranularSearch(Builder $query, $request, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
     {
-        return static::getGranularSearch($request, $query, static::getTableName(), static::getGranularExcludedKeys(), static::getGranularLikeKeys(), $prepend_key, $ignore_q ?? FALSE, $force_or ?? FALSE, $force_like ?? FALSE);
+        return granular_search()->search($request, $query, static::getTableName(), static::getGranularExcludedKeys(), static::getGranularLikeKeys(), $prepend_key, $ignore_q ?? FALSE, $force_or ?? FALSE, $force_like ?? FALSE);
     }
 
     /**
@@ -144,11 +142,11 @@ trait GranularSearchableTrait
 
             $prepend_key = Str::snake(Str::singular($relation));
 
-            $params = static::extractPrependedKeys($request, $prepend_key, $ignore_q);
+            $params = granular_search()->extractPrependedKeys($request, $prepend_key, $ignore_q);
 
             $related = $this->$relation()->getRelated();
 
-            if (count($params) === 1 && static::hasQ($params) && in_array(get_class($related), $mentioned_models, TRUE)) {
+            if (count($params) === 1 && in_array(get_class($related), $mentioned_models, TRUE) && granular_search()->hasQ($params)) {
                 continue;
             }
 
@@ -179,14 +177,14 @@ trait GranularSearchableTrait
 
         $prepend_key = $prepend_key ?? Str::snake(Str::singular($relation));
 
-        $request = static::extractPrependedKeys($request, $prepend_key, $ignore_q);
+        $request = granular_search()->extractPrependedKeys($request, $prepend_key, $ignore_q);
 
         if(empty($request) === FALSE) {
             $callback = static function (Builder $q) use ($ignore_q, $force_like, $force_or, $mentioned_models, $request) {
                 $q->search($request, $ignore_q, $force_or, $force_like, FALSE, $mentioned_models);
             };
 
-            if (static::hasQ($request)) {
+            if (granular_search()->hasQ($request)) {
                 return $query->orWhereHas($relation, $callback);
             }
 
@@ -241,17 +239,7 @@ trait GranularSearchableTrait
      */
     public static function getPreparedTableKeys (): array
     {
-        return static::prepareTableKeys(static::getTableName(), static::getGranularExcludedKeys());
-    }
-
-    /**
-     * Determine if the class using the trait is a subclass of Eloquent Model.
-     *
-     * @return bool
-     */
-    public static function isModel(): bool
-    {
-        return is_subclass_of(static::class, Model::class);
+        return granular_search()->prepareTableKeys(static::getTableName(), static::getGranularExcludedKeys());
     }
 
     /**
@@ -263,7 +251,7 @@ trait GranularSearchableTrait
     public static function hasGranularRelation(string $relation): bool
     {
         try {
-            return (new static)->$relation()->getRelated()->isModel();
+            return is_model_instance((new static)->$relation()->getRelated());
         }
         catch (BadMethodCallException $exception) {
             return FALSE;
@@ -312,9 +300,9 @@ trait GranularSearchableTrait
 
             $prepend_key = Str::snake(Str::singular($relation));
 
-            $params = static::extractPrependedKeys($request, $prepend_key, $ignore_q);
+            $params = granular_search()->extractPrependedKeys($request, $prepend_key, $ignore_q);
 
-            if (count($params) === 1 && static::hasQ($params) && in_array(get_class($this), $mentioned_models, TRUE) === FALSE) {
+            if (count($params) === 1 && granular_search()->hasQ($params) && in_array(get_class($this), $mentioned_models, TRUE) === FALSE) {
                 return TRUE;
             }
 

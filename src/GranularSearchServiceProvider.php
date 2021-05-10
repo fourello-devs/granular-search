@@ -3,17 +3,18 @@
 namespace FourelloDevs\GranularSearch;
 
 use FourelloDevs\GranularSearch\Macros\ArrMacros;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\Arr;
 use Illuminate\Support\ServiceProvider;
-use PhpParser\Node\Expr\AssignOp\Mod;
+use ReflectionException;
 
-class GranularSearchServiceProvider extends ServiceProvider
+class GranularSearchServiceProvider extends ServiceProvider implements DeferrableProvider
 {
     /**
      * Perform post-registration booting of services.
      *
      * @return void
+     * @throws ReflectionException
      */
     public function boot(): void
     {
@@ -51,7 +52,7 @@ class GranularSearchServiceProvider extends ServiceProvider
      *
      * @return array
      */
-    public function provides()
+    public function provides(): array
     {
         return ['granular-search'];
     }
