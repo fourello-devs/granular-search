@@ -3,8 +3,6 @@
 
 namespace FourelloDevs\GranularSearch\Macros;
 
-use Illuminate\Database\Eloquent\Model;
-
 /**
  * Class ArrMacros
  * @package FourelloDevs\GranularSearch\Macros

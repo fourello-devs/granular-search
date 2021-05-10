@@ -21,8 +21,8 @@ use RuntimeException;
  * @method static Builder ofRelationsFromRequest($request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?array &$mentioned_models = [])
  * @method static Builder granularSearch($request, string $prepend_key, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
  *
- * @since April 27, 2021
  * @author James Carlo S. Luchavez (carlo.luchavez@fourello.com)
+ * @since April 27, 2021
  */
 trait GranularSearchableTrait
 {
@@ -152,7 +152,7 @@ trait GranularSearchableTrait
                 continue;
             }
 
-            if($related->isSearchable($params, $ignore_q, $mentioned_models)) {
+            if($related->shoulBeSearched($params, $ignore_q, $mentioned_models)) {
                 $query = $query->ofRelationFromRequest($params, $relation, '', $ignore_q, $force_or, $force_like, $mentioned_models);
             }
         }
@@ -191,7 +191,6 @@ trait GranularSearchableTrait
             }
 
             return $query->whereHas($relation, $callback);
-
         }
 
         return $query;
@@ -295,7 +294,7 @@ trait GranularSearchableTrait
      * @param array|null $mentioned_models
      * @return bool
      */
-    public function isSearchable(array $request, ?bool $ignore_q = FALSE, ?array &$mentioned_models = []): bool
+    public function shoulBeSearched(array $request, ?bool $ignore_q = FALSE, ?array &$mentioned_models = []): bool
     {
         // Check if own keys exist
 
@@ -319,7 +318,7 @@ trait GranularSearchableTrait
                 return TRUE;
             }
 
-            if (empty($params) === FALSE && $this->$relation()->getRelated()->isSearchable($params, $ignore_q, $mentioned_models)) {
+            if (empty($params) === FALSE && $this->$relation()->getRelated()->shoulBeSearched($params, $ignore_q, $mentioned_models)) {
                 return TRUE;
             }
         }

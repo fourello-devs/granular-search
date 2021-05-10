@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 /**
  * Trait GranularSearchTrait
@@ -22,8 +23,8 @@ use Illuminate\Support\Str;
  * @note By design, this trait will ONLY process the Request keys that belongs to the column names of a certain Eloquent model's table.
  * @note Since a $request key can have an array as value, whereIn and whereInLike are also added in this algorithm.
  *
- * @since April 27, 2021
  * @author James Carlo S. Luchavez (carlo.luchavez@fourello.com)
+ * @since April 27, 2021
  */
 trait GranularSearchTrait
 {
@@ -201,7 +202,7 @@ trait GranularSearchTrait
      * @param bool $ignore_q
      * @return array
      */
-    private static function prepareData(array $request, $excluded_keys = [], $prepend_key = '', $ignore_q = FALSE): array
+    private static function prepareData(array $request, ?array $excluded_keys = [], string $prepend_key = '', bool $ignore_q = FALSE): array
     {
         if(is_array($request) && (empty($request) || Arr::isAssoc($request)))
         {
@@ -412,31 +413,5 @@ trait GranularSearchTrait
     public static function hasQ($request): bool
     {
         return static::isRequestOrArrayFilled($request, static::$q_alias, true);
-    }
-
-    /**
-     * Check if a table has been queried already.
-     *
-     * @param Builder|\Illuminate\Database\Query\Builder $query
-     * @param $table
-     * @return bool
-     */
-    public static function isTableHasQueried($query, $table): bool
-    {
-        $wheres = [];
-
-        if($query instanceof Builder){
-            $wheres = $query->getQuery()->wheres;
-        } elseif($query instanceof \Illuminate\Database\Query\Builder) {
-            $wheres = $query->wheres;
-        }
-
-        foreach ($wheres as $where) {
-            if (isset($where['query']) && ($where['query']->from === $table || self::isTableHasQueried($where['query'], $table))) {
-                return true;
-            }
-        }
-
-        return FALSE;
     }
 }
