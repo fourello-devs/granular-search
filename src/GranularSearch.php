@@ -441,11 +441,13 @@ class GranularSearch
     /**
      * Set initial model.
      *
-     * @param Model $initial_model
+     * @param $model
      */
-    public function setInitialModel(Model $initial_model): void
+    public function setInitialModel($model): void
     {
-        $this->initial_model = $this->initial_model ?? $initial_model;
+        if (is_model_instance($model)) {
+            $this->initial_model = $this->initial_model ?? $model;
+        }
     }
 
     /**
