@@ -114,15 +114,15 @@ trait GranularSearchableTrait
      *
      * @param Builder $query
      * @param Request|array $request
-     * @param string $prepend_key
-     * @param bool|null $ignore_q
-     * @param bool|null $force_or
-     * @param bool|null $force_like
+     * @param string|null $prepend_key
+     * @param bool $ignore_q
+     * @param bool $force_or
+     * @param bool $force_like
      * @return Builder|Model
      */
-    public function scopeGranularSearch(Builder $query, $request, string $prepend_key, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+    public function scopeGranularSearch(Builder $query, $request, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
     {
-        return static::getGranularSearch($request, $query, static::getTableName(), static::getGranularExcludedKeys(), static::getGranularLikeKeys(), $prepend_key, $ignore_q, $force_or, $force_like);
+        return static::getGranularSearch($request, $query, static::getTableName(), static::getGranularExcludedKeys(), static::getGranularLikeKeys(), $prepend_key, $ignore_q ?? FALSE, $force_or ?? FALSE, $force_like ?? FALSE);
     }
 
     /**

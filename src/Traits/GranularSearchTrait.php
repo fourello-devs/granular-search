@@ -36,15 +36,15 @@ trait GranularSearchTrait
      * @param Request|array $request Contains all the information regarding the HTTP request
      * @param Model|Builder $model Model or query builder that will be subjected to searching/filtering
      * @param string $table_name Database table name associated with the $model
-     * @param array $excluded_keys Request keys or table column names to be excluded from $request
-     * @param array $like_keys Request keys or table column names to be search with LIKE
-     * @param string $prepend_key
+     * @param array|null $excluded_keys Request keys or table column names to be excluded from $request
+     * @param array|null $like_keys Request keys or table column names to be search with LIKE
+     * @param string|null $prepend_key
      * @param bool $ignore_q
      * @param bool $force_or
      * @param bool $force_like
      * @return Model|Builder
      */
-    public static function getGranularSearch($request, $model, string $table_name, array $excluded_keys = [], array $like_keys = [], string $prepend_key = '', bool $ignore_q = FALSE, bool $force_or = FALSE, bool $force_like = FALSE)
+    public static function getGranularSearch($request, $model, string $table_name, ?array $excluded_keys = [], ?array $like_keys = [], ?string $prepend_key = '', ?bool $ignore_q = false, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
     {
         self::validateRequest($request);
         self::validateTableName($table_name);
