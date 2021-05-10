@@ -17,7 +17,7 @@ use RuntimeException;
  * @package FourelloDevs\GranularSearch\Traits
  *
  * @method static Builder granularSearch($request, string $prepend_key, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
- * @method static Builder search(Builder $query, $request, ?bool $q_search_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+ * @method static Builder search($request, ?bool $q_search_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
  * @method static Builder ofRelationsFromRequest($request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
  * @method static Builder ofRelationFromRequest($request, string $relation, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
  * @method static Builder ofRelation(string $relation, $key, $value, bool $force_or = FALSE)
