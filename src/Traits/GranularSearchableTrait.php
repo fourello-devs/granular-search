@@ -7,7 +7,7 @@ use BadMethodCallException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -46,12 +46,6 @@ trait GranularSearchableTrait
      */
     protected static $granular_allowed_relations = [];
 
-    /**
-     * @var string[]
-     * @label Array of relation names to include on filter by q
-     */
-    protected static $granular_q_relations = [];
-
     /***** GETTERS *****/
 
     /**
@@ -78,14 +72,6 @@ trait GranularSearchableTrait
         return static::$granular_allowed_relations;
     }
 
-    /**
-     * @return string[]
-     */
-    public static function getGranularQRelations(): array
-    {
-        return static::$granular_q_relations;
-    }
-
     /***** QUERY SCOPES *****/
 
     /**
@@ -107,6 +93,9 @@ trait GranularSearchableTrait
         }
         else if(is_string($request)) {
             $request = ['q' => $request];
+        }
+        else if(is_array($request) && Arr::isAssoc($request) === FALSE) {
+            $request = ['q' => array_values($request)];
         }
 
         $mentioned_models[] = static::class;
@@ -133,7 +122,7 @@ trait GranularSearchableTrait
      */
     public function scopeGranularSearch(Builder $query, $request, string $prepend_key, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
     {
-        return static::getGranularSearch($request, $query, static::getTableName(), static::$granular_excluded_keys, static::$granular_like_keys, $prepend_key, $ignore_q, $force_or, $force_like);
+        return static::getGranularSearch($request, $query, static::getTableName(), static::getGranularExcludedKeys(), static::getGranularLikeKeys(), $prepend_key, $ignore_q, $force_or, $force_like);
     }
 
     /**
@@ -149,7 +138,7 @@ trait GranularSearchableTrait
      */
     public function scopeOfRelationsFromRequest(Builder $query, $request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?array &$mentioned_models = []): Builder
     {
-        foreach (static::$granular_allowed_relations as $relation)
+        foreach (static::getGranularAllowedRelations() as $relation)
         {
             $this->validateRelation($relation);
 
@@ -188,22 +177,21 @@ trait GranularSearchableTrait
     {
         $this->validateRelation($relation);
 
-        $q_relations = static::requestOrArrayGet($request, 'q_relations', static::$granular_q_relations);
-
         $prepend_key = $prepend_key ?? Str::snake(Str::singular($relation));
 
         $request = static::extractPrependedKeys($request, $prepend_key, $ignore_q);
 
-        if(empty($request) === FALSE){
+        if(empty($request) === FALSE) {
             $callback = static function (Builder $q) use ($ignore_q, $force_like, $force_or, $mentioned_models, $request) {
                 $q->search($request, $ignore_q, $force_or, $force_like, FALSE, $mentioned_models);
             };
 
-            if (static::hasQ($request) && in_array($relation, $q_relations, true)) {
+            if (static::hasQ($request)) {
                 return $query->orWhereHas($relation, $callback);
             }
 
             return $query->whereHas($relation, $callback);
+
         }
 
         return $query;
@@ -290,7 +278,7 @@ trait GranularSearchableTrait
      */
     public function validateRelation(string $relation): void
     {
-        if(in_array($relation, static::$granular_allowed_relations, true) === FALSE){
+        if(in_array($relation, static::$granular_allowed_relations, TRUE) === FALSE){
             throw new RuntimeException($relation . ' is not included in the allowed relations array of ' . static::class);
         }
 
@@ -320,7 +308,7 @@ trait GranularSearchableTrait
 
         // Check if related model keys exist
 
-        foreach (static::$granular_allowed_relations as $relation) {
+        foreach (static::getGranularAllowedRelations() as $relation) {
             $this->validateRelation($relation);
 
             $prepend_key = Str::snake(Str::singular($relation));
