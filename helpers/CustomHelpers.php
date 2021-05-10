@@ -138,3 +138,13 @@ if (! function_exists('is_model_instance')) {
         return is_subclass_of($object_or_class, Model::class);
     }
 }
+
+if (! function_exists('get_class_name_from_object')) {
+    /**
+     * @param mixed $object_or_class
+     * @return mixed|string
+     */
+    function get_class_name_from_object($object_or_class) {
+        return is_object($object_or_class) ? get_class($object_or_class) : $object_or_class;
+    }
+}

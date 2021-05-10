@@ -27,31 +27,23 @@ class GranularSearch
     protected $q_alias;
 
     /**
+     * @var string[]
+     */
+    protected $mentioned_models;
+
+    /**
+     * @var Model|null
+     */
+    protected $initial_model;
+
+    /**
      * GranularSearch constructor.
      */
     public function __construct()
     {
         $this->setQAlias('q');
-    }
-
-    /**
-     * Get Q Alias
-     *
-     * @return string
-     */
-    public function getQAlias(): string
-    {
-        return $this->q_alias;
-    }
-
-    /**
-     * Set Q Alias
-     *
-     * @param string $q_alias
-     */
-    public function setQAlias(string $q_alias): void
-    {
-        $this->q_alias = $q_alias;
+        $this->mentioned_models = [];
+        $this->initial_model = null;
     }
 
     /**
@@ -372,5 +364,106 @@ class GranularSearch
     public function hasQ($request): bool
     {
         return is_request_or_array_filled($request, $this->getQAlias(), true);
+    }
+
+    /***** SETTERS & GETTERS *****/
+
+    /**
+     * Get Q Alias
+     *
+     * @return string
+     */
+    public function getQAlias(): string
+    {
+        return $this->q_alias;
+    }
+
+    /**
+     * Set Q Alias
+     *
+     * @param string $q_alias
+     */
+    public function setQAlias(string $q_alias): void
+    {
+        $this->q_alias = $q_alias;
+    }
+
+    /**
+     * Get mentioned models array.
+     *
+     * @return string[]
+     */
+    public function getMentionedModels(): array
+    {
+        return $this->mentioned_models;
+    }
+
+    /**
+     * Set mentioned models array.
+     *
+     * @param string[] $mentioned_models
+     */
+    public function setMentionedModels(array $mentioned_models): void
+    {
+        $this->mentioned_models = $mentioned_models;
+    }
+
+    /**
+     * Clear mentioned models array.
+     */
+    public function clearMentions(): void
+    {
+        $this->setMentionedModels([]);
+    }
+
+    /**
+     * Add model to mentions.
+     *
+     * @param mixed $object_or_class
+     */
+    public function addToMentionsModels($object_or_class): void
+    {
+        $this->mentioned_models[] = get_class_name_from_object($object_or_class);
+    }
+
+    /**
+     * Check if a model is mentioned already.
+     *
+     * @param mixed $object_or_class
+     * @return bool
+     */
+    public function isModelMentioned($object_or_class): bool
+    {
+        $needle = get_class_name_from_object($object_or_class);
+        return in_array($needle, $this->getMentionedModels(), TRUE);
+    }
+
+    /**
+     * Set initial model.
+     *
+     * @param Model $initial_model
+     */
+    public function setInitialModel(Model $initial_model): void
+    {
+        $this->initial_model = $this->initial_model ?? $initial_model;
+    }
+
+    /**
+     * Clear initial model.
+     */
+    public function clearInitialModel() : void
+    {
+        $this->initial_model = null;
+    }
+
+    /**
+     * Check if a model is the initial model.
+     *
+     * @param Model $initial_model
+     * @return bool
+     */
+    public function isInitialModel(Model $initial_model): bool
+    {
+        return $this->initial_model === $initial_model;
     }
 }

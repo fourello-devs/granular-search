@@ -82,11 +82,14 @@ trait GranularSearchableTrait
      * @param bool|null $ignore_q
      * @param bool|null $force_or
      * @param bool|null $force_like
-     * @param array|null $mentioned_models
      * @return mixed
      */
-    public function scopeSearch(Builder $query, $request, ?bool $ignore_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?array &$mentioned_models = [])
+    public function scopeSearch(Builder $query, $request, ?bool $ignore_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
     {
+        Log::info('started');
+
+        granular_search()->setInitialModel($this);
+
         if(is_request_instance($request)) {
             $request = $request->all();
         }
@@ -97,14 +100,20 @@ trait GranularSearchableTrait
             $request = [granular_search()->getQAlias() => array_values($request)];
         }
 
-        $mentioned_models[] = static::class;
+        granular_search()->addToMentionsModels($this);
 
-        Log::info('Relation Tracing @ ' . static::class, $mentioned_models);
+        Log::info('Relation Tracing @ ' . static::class, granular_search()->getMentionedModels());
 
         $query = $query->granularSearch($request, '', $ignore_q, $force_or, $force_like);
 
         if ($ignore_relationships === FALSE) {
-            $query = $query->ofRelationsFromRequest($request, $ignore_q, $force_or, $force_like, $mentioned_models);
+            $query = $query->ofRelationsFromRequest($request, $ignore_q, $force_or, $force_like);
+        }
+
+        if (granular_search()->isInitialModel($this)) {
+            granular_search()->clearMentions();
+            granular_search()->clearInitialModel();
+            Log::info('ended');
         }
 
         return $query;
@@ -134,10 +143,9 @@ trait GranularSearchableTrait
      * @param bool|null $ignore_q
      * @param bool|null $force_or
      * @param bool|null $force_like
-     * @param array|null $mentioned_models
      * @return Builder
      */
-    public function scopeOfRelationsFromRequest(Builder $query, $request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?array &$mentioned_models = []): Builder
+    public function scopeOfRelationsFromRequest(Builder $query, $request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE): Builder
     {
         foreach (static::getGranularAllowedRelations() as $relation)
         {
@@ -149,11 +157,11 @@ trait GranularSearchableTrait
 
             $related = $this->$relation()->getRelated();
 
-            if (count($params) === 1 && in_array(get_class($related), $mentioned_models, TRUE) && granular_search()->hasQ($params)) {
+            if (count($params) === 1 && granular_search()->isModelMentioned($related) && granular_search()->hasQ($params)) {
                 continue;
             }
 
-            if($related->shoulBeSearched($params, $ignore_q, $mentioned_models)) {
+            if($related->shoulBeSearched($params, $ignore_q)) {
                 $query = $query->ofRelationFromRequest($params, $relation, '', $ignore_q, $force_or, $force_like, $mentioned_models);
             }
         }
@@ -171,10 +179,9 @@ trait GranularSearchableTrait
      * @param bool|null $ignore_q
      * @param bool|null $force_or
      * @param bool|null $force_like
-     * @param array|null $mentioned_models
      * @return Builder
      */
-    public function scopeOfRelationFromRequest(Builder $query, $request, string $relation, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?array &$mentioned_models = []): Builder
+    public function scopeOfRelationFromRequest(Builder $query, $request, string $relation, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE): Builder
     {
         $this->validateRelation($relation);
 
@@ -183,8 +190,8 @@ trait GranularSearchableTrait
         $request = granular_search()->extractPrependedKeys($request, $prepend_key, $ignore_q);
 
         if(empty($request) === FALSE) {
-            $callback = static function (Builder $q) use ($ignore_q, $force_like, $force_or, $mentioned_models, $request) {
-                $q->search($request, $ignore_q, $force_or, $force_like, FALSE, $mentioned_models);
+            $callback = static function (Builder $q) use ($ignore_q, $force_like, $force_or, $request) {
+                $q->search($request, $ignore_q, $force_or, $force_like, FALSE);
             };
 
             if (granular_search()->hasQ($request)) {
@@ -282,10 +289,9 @@ trait GranularSearchableTrait
      *
      * @param array $request
      * @param bool|null $ignore_q
-     * @param array|null $mentioned_models
      * @return bool
      */
-    public function shoulBeSearched(array $request, ?bool $ignore_q = FALSE, ?array &$mentioned_models = []): bool
+    public function shoulBeSearched(array $request, ?bool $ignore_q = FALSE): bool
     {
         // Check if own keys exist
 
@@ -305,11 +311,11 @@ trait GranularSearchableTrait
 
             $params = granular_search()->extractPrependedKeys($request, $prepend_key, $ignore_q);
 
-            if (count($params) === 1 && granular_search()->hasQ($params) && in_array(get_class($this), $mentioned_models, TRUE) === FALSE) {
+            if (count($params) === 1 && granular_search()->hasQ($params) && granular_search()->isModelMentioned($this) === FALSE) {
                 return TRUE;
             }
 
-            if (empty($params) === FALSE && $this->$relation()->getRelated()->shoulBeSearched($params, $ignore_q, $mentioned_models)) {
+            if (empty($params) === FALSE && $this->$relation()->getRelated()->shoulBeSearched($params, $ignore_q)) {
                 return TRUE;
             }
         }
