@@ -15,11 +15,11 @@ use RuntimeException;
  * Trait GranularSearchableTrait
  * @package FourelloDevs\GranularSearch\Traits
  *
- * @method static Builder search($request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?bool $ignore_relationships = FALSE, ?array &$mentioned_models = [])
- * @method static Builder ofRelation(string $relation, $key, $value, bool $force_or = FALSE)
- * @method static Builder ofRelationFromRequest($request, string $relation, ?string $prepend_key, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?array &$mentioned_models = [])
- * @method static Builder ofRelationsFromRequest($request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?array &$mentioned_models = [])
  * @method static Builder granularSearch($request, string $prepend_key, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+ * @method static Builder search(Builder $query, $request, ?bool $ignore_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+ * @method static Builder ofRelationsFromRequest($request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+ * @method static Builder ofRelationFromRequest($request, string $relation, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+ * @method static Builder ofRelation(string $relation, $key, $value, bool $force_or = FALSE)
  *
  * @author James Carlo S. Luchavez (carlo.luchavez@fourello.com)
  * @since April 27, 2021
@@ -77,23 +77,23 @@ trait GranularSearchableTrait
      *
      * @param Builder $query
      * @param Request|array|string $request
+     * @param bool|null $ignore_relationships
      * @param bool|null $ignore_q
      * @param bool|null $force_or
      * @param bool|null $force_like
-     * @param bool|null $ignore_relationships
      * @param array|null $mentioned_models
      * @return mixed
      */
-    public function scopeSearch(Builder $query, $request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?bool $ignore_relationships = FALSE, ?array &$mentioned_models = [])
+    public function scopeSearch(Builder $query, $request, ?bool $ignore_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?array &$mentioned_models = [])
     {
         if(is_request_instance($request)) {
             $request = $request->all();
         }
         else if(is_string($request)) {
-            $request = ['q' => $request];
+            $request = [granular_search()->getQAlias() => $request];
         }
         else if(is_array($request) && Arr::isAssoc($request) === FALSE) {
-            $request = ['q' => array_values($request)];
+            $request = [granular_search()->getQAlias() => array_values($request)];
         }
 
         $mentioned_models[] = static::class;
@@ -171,7 +171,7 @@ trait GranularSearchableTrait
      * @param array|null $mentioned_models
      * @return Builder
      */
-    public function scopeOfRelationFromRequest(Builder $query, $request, string $relation, ?string $prepend_key, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?array &$mentioned_models = []): Builder
+    public function scopeOfRelationFromRequest(Builder $query, $request, string $relation, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE, ?array &$mentioned_models = []): Builder
     {
         $this->validateRelation($relation);
 
