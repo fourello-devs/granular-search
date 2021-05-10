@@ -451,6 +451,16 @@ class GranularSearch
     }
 
     /**
+     * Get initial model.
+     *
+     * @return Model|null
+     */
+    public function getInitialModel(): ?Model
+    {
+        return $this->initial_model;
+    }
+
+    /**
      * Clear initial model.
      */
     public function clearInitialModel() : void

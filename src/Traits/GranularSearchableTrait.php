@@ -162,7 +162,7 @@ trait GranularSearchableTrait
             }
 
             if($related->shoulBeSearched($params, $ignore_q)) {
-                $query = $query->ofRelationFromRequest($params, $relation, '', $ignore_q, $force_or, $force_like, $mentioned_models);
+                $query = $query->ofRelationFromRequest($params, $relation, '', $ignore_q, $force_or, $force_like);
             }
         }
 
