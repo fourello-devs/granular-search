@@ -175,35 +175,6 @@ class GranularSearch
             }
         });
 
-        // SORTING
-        if(Arr::isFilled($data, 'sortBy'))
-        {
-            $asc = $data['sortBy'];
-            if(is_array($asc)){
-                foreach ($asc as $a) {
-                    if(Schema::hasColumn($table_name, $a)){
-                        $model = $model->orderBy($a);
-                    }
-                }
-            }
-            else if(Schema::hasColumn($table_name, $asc)) {
-                $model = $model->orderBy($asc);
-            }
-        }
-
-        else if(Arr::isFilled($data, 'sortByDesc')){
-            $desc = $data['sortByDesc'];
-            if(is_array($desc)) {
-                foreach ($desc as $d) {
-                    if(Schema::hasColumn($table_name, $d)){
-                        $model = $model->orderBy($d, 'desc');
-                    }
-                }
-            } else if(Schema::hasColumn($table_name, $desc)) {
-                $model = $model->orderBy($desc, 'desc');
-            }
-        }
-
         return $model;
     }
 

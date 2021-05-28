@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -21,6 +22,7 @@ use RuntimeException;
  * @method static Builder ofRelationsFromRequest($request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
  * @method static Builder ofRelationFromRequest($request, string $relation, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
  * @method static Builder ofRelation(string $relation, $key, $value, bool $force_or = FALSE)
+ * @method static Builder sortFromRequest($request)
  *
  * @author James Carlo S. Luchavez (carlo.luchavez@fourello.com)
  * @since April 27, 2021
@@ -98,6 +100,8 @@ trait GranularSearchableTrait
             $request = [granular_search()->getQAlias() => array_values($request)];
         }
 
+//        $request = array_filter_recursive($request);
+
         granular_search()->addToMentionedModels($this);
 
         $query = $query->granularSearch($request, '', $ignore_q, $force_or, $force_like)->ofRelationsFromRequest($request, $q_search_relationships === FALSE ? TRUE : $ignore_q, $force_or, $force_like);
@@ -105,6 +109,7 @@ trait GranularSearchableTrait
         if (granular_search()->isInitialModel($this)) {
             granular_search()->clearMentions();
             granular_search()->clearInitialModel();
+            $query = $query->sortFromRequest($request);
         }
 
         return $query;
@@ -219,6 +224,55 @@ trait GranularSearchableTrait
         return $query->whereHas($relation, function ($q) use ($force_or, $params) {
             $q->granularSearch($params, '', FALSE, $force_or);
         });
+    }
+
+    /**
+     * @param Builder $query
+     * @param $request
+     * @return Builder
+     */
+
+    public function scopeSortFromRequest(Builder $query, $request): Builder
+    {
+        if ($column_or_array = request_or_array_get($request, 'sort')) {
+            foreach ($column_or_array as $key => $value) {
+                if (is_numeric($key)) {
+                    $query = $query->sort($value);
+                }
+                else {
+                    $query = $query->sort($key, strtolower(trim($value)) === 'desc');
+                }
+            }
+        }
+
+        else if($column_or_array = request_or_array_get($request, 'sortBy'))
+        {
+            $query = $query->sort($column_or_array);
+        }
+
+        else if($column_or_array = request_or_array_get($request, 'sortByDesc')){
+            $query = $query->sort($column_or_array, TRUE);
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param Builder $query
+     * @param string[]|string $column_or_array
+     * @param bool $is_descending
+     * @param bool $is_nulls_first
+     */
+    public function scopeSort(Builder $query, $column_or_array, bool $is_descending = FALSE, bool $is_nulls_first = FALSE): void
+    {
+        if (is_array($column_or_array) === FALSE) {
+            $column_or_array = [$column_or_array];
+        }
+        foreach ($column_or_array as $col) {
+            if(Schema::hasColumn(static::getTableName(), $col)){
+                $query = $query->orderByRaw('CASE WHEN ' . $col . ' IS NULL THEN 0 ELSE 1 END ' . ($is_nulls_first ? 'ASC' : 'DESC'))->orderBy($col, $is_descending ? 'desc': 'asc');
+            }
+        }
     }
 
     /***** METHODS *****/
