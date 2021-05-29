@@ -23,12 +23,15 @@ use RuntimeException;
  * @method static Builder ofRelationFromRequest($request, string $relation, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
  * @method static Builder ofRelation(string $relation, $key, $value, bool $force_or = FALSE)
  * @method static Builder sortFromRequest($request)
+ * @method static Builder sort($column_or_array, bool $is_descending = FALSE, bool $is_nulls_first = FALSE)
  *
  * @author James Carlo S. Luchavez (carlo.luchavez@fourello.com)
  * @since April 27, 2021
  */
 trait GranularSearchableTrait
 {
+    use GranularTimeSearchTrait;
+
     /**
      * @var string[]
      * @label Array of keys to exclude during filtering
@@ -109,6 +112,11 @@ trait GranularSearchableTrait
         if (granular_search()->isInitialModel($this)) {
             granular_search()->clearMentions();
             granular_search()->clearInitialModel();
+
+            // Proceed With Search By Time
+            $query = $query->searchTimeFromRequest($request, $this->time_column, $this->time_zone);
+
+            // Proceed With Sorting
             $query = $query->sortFromRequest($request);
         }
 

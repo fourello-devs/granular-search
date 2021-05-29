@@ -2,6 +2,7 @@
 
 namespace FourelloDevs\GranularSearch;
 
+use FourelloDevs\GranularSearch\Traits\GranularTimeSearchTrait;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ use RuntimeException;
  */
 class GranularSearch
 {
+
     /**
      * Alias for q searching
      *
@@ -107,7 +109,7 @@ class GranularSearch
                                     self::setWhereCondition($q, $col, $s, true, 'or');
                                 }
                             });
-                        }else{
+                        } else {
                             self::setWhereCondition($query, $col, $value, true, 'or');
                         }
                     }
