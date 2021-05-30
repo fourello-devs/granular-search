@@ -227,9 +227,13 @@ class GranularSearch
         $prepend = $prepend_key . '_';
 
         foreach ($data as $key=>$value) {
-            if(empty($value)) {
+
+            // Skip Empty Arrays and Blank Strings
+
+            if((is_array($value) && empty($value)) || (is_string($value) && empty(trim($value)))) {
                 continue;
             }
+
             if(Str::startsWith($key, $prepend)) {
                 $key = Str::after($key, $prepend);
                 if($ignore_q && $key === $this->getQAlias()) {
