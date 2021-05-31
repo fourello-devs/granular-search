@@ -82,7 +82,7 @@ trait GranularSearchableTrait
      * Query scope to filter an Eloquent model and its related models using Request parameters.
      *
      * @param Builder $query
-     * @param Request|array|string|null $request
+     * @param Request|array|string|null|bool $request
      * @param bool|null $q_search_relationships
      * @param bool|null $ignore_q
      * @param bool|null $force_or
@@ -102,8 +102,8 @@ trait GranularSearchableTrait
         else if(is_array($request) && Arr::isAssoc($request) === FALSE) {
             $request = [granular_search()->getQAlias() => array_values($request)];
         }
-        else if(is_null($request)) {
-            $request = [granular_search()->getQAlias() => NULL];
+        else if(is_bool($request) || is_null($request)) {
+            $request = [granular_search()->getQAlias() => $request];
         }
 
         granular_search()->addToMentionedModels($this);
