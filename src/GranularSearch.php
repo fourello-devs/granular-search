@@ -74,13 +74,14 @@ class GranularSearch
         }
 
         $data = $this->prepareData($request, $excluded_keys, $prepend_key, $ignore_q);
+
         $request_keys = array_keys($data);
 
         if(empty($data)) {
             return $model;
         }
 
-        $accept_q = !$ignore_q && Arr::isFilled($data, $this->getQAlias());
+        $accept_q = !$ignore_q && $this->hasQ($data);
 
         $table_keys = $this->prepareTableKeys($table_name, $excluded_keys);
 
@@ -95,15 +96,15 @@ class GranularSearch
             $exact_keys = array_values(array_diff($exact_keys, $like_keys));
         }
 
-        $model = $model->where(function (Builder $query) use ($force_like, $force_or, $accept_q, $data, $like_keys, $exact_keys) {
+        return $model->where(function (Builder $query) use ($force_like, $force_or, $accept_q, $data, $like_keys, $exact_keys) {
             // 'LIKE' SEARCHING
             if (empty($like_keys) === FALSE) {
                 // If 'q' is present and is filled, proceed with all-column search
                 if($accept_q){
                     $search = $data[$this->getQAlias()];
                     foreach ($like_keys as $col) {
-                        $value = Arr::get($data, $col, $search);
-                        if(is_array($value)){
+                        $value = request_or_array_get($data, $col, $search);
+                        if(is_array($value)) {
                             $query = $query->orWhere(function (Builder $q) use ($col, $value) {
                                 foreach ($value as $s) {
                                     self::setWhereCondition($q, $col, $s, true, 'or');
@@ -118,7 +119,7 @@ class GranularSearch
                 // If 'q' is not present, proceed with column-specific search
                 else {
                     foreach ($like_keys as $col) {
-                        if (Arr::isFilled($data, $col)) {
+                        if (request_or_array_has($data, $col)) {
                             $search = $data[$col];
                             if (is_array($search)) {
                                 $query = $query->where(function (Builder $q) use ($col, $search) {
@@ -138,7 +139,7 @@ class GranularSearch
             if($accept_q){
                 $search = $data[$this->getQAlias()];
                 foreach ($exact_keys as $col) {
-                    $value = Arr::get($data, $col, $search);
+                    $value = request_or_array_get($data, $col, $search);
                     if(is_array($value)) {
                         if($force_like) {
                             $query = $query->orWhere(function (Builder $q) use ($col, $value) {
@@ -156,7 +157,7 @@ class GranularSearch
             }
             else {
                 foreach ($exact_keys as $col) {
-                    if (Arr::isFilled($data, $col)) {
+                    if (request_or_array_has($data, $col)) {
                         $search = $data[$col];
                         if (is_array($search)) {
                             if($force_like){
@@ -176,8 +177,6 @@ class GranularSearch
                 }
             }
         });
-
-        return $model;
     }
 
     /***** METHODS *****/
@@ -319,14 +318,25 @@ class GranularSearch
      *
      * @param Builder $query
      * @param string $col
-     * @param string $str
+     * @param string|null|bool $str
      * @param bool|null $is_like_search
      * @param string|null $boolean
      */
-    public function setWhereCondition(Builder $query, string $col, string $str, ?bool $is_like_search = FALSE, ?string $boolean = 'and'): void
+    public function setWhereCondition(Builder $query, string $col, $str, ?bool $is_like_search = FALSE, ?string $boolean = 'and'): void
     {
+        if (is_null($str)) {
+            $query->whereRaw(implode(' ', [$col, 'IS', 'NULL']), [], $boolean);
+            return;
+        }
+
+        if (is_bool($str)) {
+            $query->whereRaw(implode(' ', [$col, '=', (int) $str]), [], $boolean);
+            return;
+        }
+
         $operator = $is_like_search ? 'LIKE' : '=';
         $str = $is_like_search ? $this->getLikeString($str) : $str;
+
         if (empty($str) === FALSE) {
             $query->whereRaw(implode(' ', [$col, $operator, '?']), [$str], $boolean);
         }
@@ -340,7 +350,7 @@ class GranularSearch
      */
     public function hasQ($request): bool
     {
-        return is_request_or_array_filled($request, $this->getQAlias(), true);
+        return request_or_array_has($request, $this->getQAlias(), true);
     }
 
     /***** SETTERS & GETTERS *****/
