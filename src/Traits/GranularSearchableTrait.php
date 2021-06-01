@@ -102,7 +102,7 @@ trait GranularSearchableTrait
         else if(is_array($request) && Arr::isAssoc($request) === FALSE) {
             $request = [granular_search()->getQAlias() => array_values($request)];
         }
-        else if(is_bool($request) || is_null($request)) {
+        else if(is_bool($request) || is_numeric($request)|| is_null($request)) {
             $request = [granular_search()->getQAlias() => $request];
         }
 

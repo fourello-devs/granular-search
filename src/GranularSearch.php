@@ -214,10 +214,6 @@ class GranularSearch
             $data = $data->all();
         }
 
-        if(empty($prepend_key)) {
-            return $data;
-        }
-
         if(empty($data) === FALSE && Arr::isNotAssoc($data)) {
             throw new RuntimeException('$data must be an associative array.');
         }
