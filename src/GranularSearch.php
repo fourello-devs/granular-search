@@ -214,6 +214,12 @@ class GranularSearch
             $data = $data->all();
         }
 
+        $data = array_filter_recursive($data, TRUE, TRUE, TRUE);
+
+        if (empty($prepend_key)) {
+            return $data;
+        }
+
         if(empty($data) === FALSE && Arr::isNotAssoc($data)) {
             throw new RuntimeException('$data must be an associative array.');
         }

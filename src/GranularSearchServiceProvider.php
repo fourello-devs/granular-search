@@ -4,7 +4,6 @@ namespace FourelloDevs\GranularSearch;
 
 use FourelloDevs\GranularSearch\Macros\ArrMacros;
 use Illuminate\Contracts\Support\DeferrableProvider;
-use Illuminate\Support\Arr;
 use Illuminate\Support\ServiceProvider;
 use ReflectionException;
 
@@ -14,7 +13,6 @@ class GranularSearchServiceProvider extends ServiceProvider implements Deferrabl
      * Perform post-registration booting of services.
      *
      * @return void
-     * @throws ReflectionException
      */
     public function boot(): void
     {
@@ -27,9 +25,6 @@ class GranularSearchServiceProvider extends ServiceProvider implements Deferrabl
         if ($this->app->runningInConsole()) {
             $this->bootForConsole();
         }
-
-        // Boot Arr
-        Arr::mixin(new ArrMacros);
     }
 
     /**
