@@ -244,14 +244,19 @@ trait GranularSearchableTrait
     public function scopeSortFromRequest(Builder $query, $request): Builder
     {
         if ($column_or_array = request_or_array_get($request, 'sort')) {
+            $column_or_array = Arr::wrap($column_or_array);
             foreach ($column_or_array as $key => $value) {
-                if (is_numeric($key)) {
-                    $query = $query->sort($value);
-                }
-                else {
-                    $query = $query->sort($key, strtolower(trim($value)) === 'desc');
+                $value = strtolower($value);
+                if (is_null($value) === FALSE) {
+                    if (is_numeric($key)) {
+                        $query = $query->sort($value);
+                    }
+                    else if (preg_match('/asc|desc/', $value)) {
+                        $query = $query->sort($key, preg_match('/desc/', $value));
+                    }
                 }
             }
+            dd($query->toSql());
         }
 
         else if($column_or_array = request_or_array_get($request, 'sortBy'))
@@ -274,9 +279,7 @@ trait GranularSearchableTrait
      */
     public function scopeSort(Builder $query, $column_or_array, bool $is_descending = FALSE, bool $is_nulls_first = FALSE): void
     {
-        if (is_array($column_or_array) === FALSE) {
-            $column_or_array = [$column_or_array];
-        }
+        $column_or_array = Arr::wrap($column_or_array);
         foreach ($column_or_array as $col) {
             if(Schema::hasColumn(static::getTableName(), $col)){
                 $query = $query->orderByRaw('CASE WHEN ' . $col . ' IS NULL THEN 0 ELSE 1 END ' . ($is_nulls_first ? 'ASC' : 'DESC'))->orderBy($col, $is_descending ? 'desc': 'asc');
