@@ -256,7 +256,6 @@ trait GranularSearchableTrait
                     }
                 }
             }
-            dd($query->toSql());
         }
 
         else if($column_or_array = request_or_array_get($request, 'sortBy'))
