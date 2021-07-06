@@ -8,8 +8,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -207,7 +205,7 @@ trait GranularSearchableTrait
         }
 
         return $query;
-    }
+}
 
     /**
      * Query scope for basic single relation filtering.
@@ -280,7 +278,7 @@ trait GranularSearchableTrait
     {
         $column_or_array = Arr::wrap($column_or_array);
         foreach ($column_or_array as $col) {
-            if(Schema::hasColumn(static::getTableName(), $col)){
+            if(granular_search()->hasColumn(static::getTableName(), $col)){
                 $query = $query->orderByRaw('CASE WHEN ' . $col . ' IS NULL THEN 0 ELSE 1 END ' . ($is_nulls_first ? 'ASC' : 'DESC'))->orderBy($col, $is_descending ? 'desc': 'asc');
             }
         }

@@ -2,11 +2,13 @@
 
 namespace FourelloDevs\GranularSearch;
 
-use FourelloDevs\GranularSearch\Traits\GranularTimeSearchTrait;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -179,6 +181,24 @@ class GranularSearch
         });
     }
 
+    /***** SETTERS & GETTERS *****/
+
+    /**
+     * Display database schema info.
+     *
+     * @return Collection
+     */
+    public function getDatabaseStructure(): Collection
+    {
+        return Cache::rememberForever('granular_tables', function () {
+            $structure = collect();
+            foreach (DB::connection()->getDoctrineSchemaManager()->listTableNames() as $table) {
+                $structure->put($table, collect(Schema::getColumnListing($table)));
+            }
+            return $structure;
+        });
+    }
+
     /***** METHODS *****/
 
     /**
@@ -259,7 +279,11 @@ class GranularSearch
      */
     public function prepareTableKeys(string $table_name, ?array $excluded_keys = []): array
     {
-        return array_values(array_diff(Schema::getColumnListing($table_name), $excluded_keys));
+        if ($t = $this->getTable($table_name)) {
+            return array_values(array_diff($t->toArray(), $excluded_keys));
+        }
+
+        return [];
     }
 
     /**
@@ -281,7 +305,7 @@ class GranularSearch
      */
     public function validateTableName(string $table_name): void
     {
-        if(Schema::hasTable($table_name) === FALSE){
+        if($this->hasTable($table_name) === FALSE) {
             throw new RuntimeException('Table name provided does not exist in database.');
         }
     }
@@ -466,5 +490,39 @@ class GranularSearch
     public function isInitialModel(Model $initial_model): bool
     {
         return $this->initial_model === $initial_model;
+    }
+
+    /**
+     * Check if a database table exists.
+     *
+     * @param string $table
+     * @return bool
+     */
+    public function hasTable(string $table): bool
+    {
+        return $this->getDatabaseStructure()->has($table);
+    }
+
+    /**
+     * Get table structure.
+     *
+     * @param string $table
+     * @return Collection|null
+     */
+    public function getTable(string $table): ?Collection
+    {
+        return $this->getDatabaseStructure()->get($table);
+    }
+
+    /**
+     * Check if a database table has a column.
+     *
+     * @param string $table
+     * @param string $column
+     * @return bool
+     */
+    public function hasColumn(string $table, string $column): bool
+    {
+        return ($t = $this->getDatabaseStructure()->get($table)) && $t instanceof Collection && $t->contains($column);
     }
 }

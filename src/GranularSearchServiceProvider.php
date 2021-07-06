@@ -2,8 +2,10 @@
 
 namespace FourelloDevs\GranularSearch;
 
+use Doctrine\DBAL\Exception;
 use FourelloDevs\GranularSearch\Macros\ArrMacros;
 use Illuminate\Contracts\Support\DeferrableProvider;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 use ReflectionException;
 
@@ -13,6 +15,7 @@ class GranularSearchServiceProvider extends ServiceProvider implements Deferrabl
      * Perform post-registration booting of services.
      *
      * @return void
+     * @throws Exception
      */
     public function boot(): void
     {
