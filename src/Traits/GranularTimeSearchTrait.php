@@ -13,7 +13,7 @@ use Illuminate\Support\Carbon;
  * @author James Carlo Luchavez <carlo.luchavez@fourello.com>
  * @since 2021-05-29
  *
- * @method static Builder searchTimeFromRequest($request, string $time_column, string $timezone)
+ * @method static static|Builder searchTimeFromRequest($request, string $time_column, string $timezone)
  */
 trait GranularTimeSearchTrait
 {

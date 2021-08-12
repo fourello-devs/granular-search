@@ -15,13 +15,13 @@ use RuntimeException;
  * Trait GranularSearchableTrait
  * @package FourelloDevs\GranularSearch\Traits
  *
- * @method static Builder granularSearch($request, string $prepend_key, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
- * @method static Builder search($request, ?bool $q_search_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
- * @method static Builder ofRelationsFromRequest($request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
- * @method static Builder ofRelationFromRequest($request, string $relation, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
- * @method static Builder ofRelation(string $relation, $key, $value, bool $force_or = FALSE)
- * @method static Builder sortFromRequest($request)
- * @method static Builder sort($column_or_array, bool $is_descending = FALSE, bool $is_nulls_first = FALSE)
+ * @method static static|Builder search($request, ?bool $q_search_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+ * @method static static|Builder granularSearch($request, string $prepend_key, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+ * @method static static|Builder ofRelationsFromRequest($request, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+ * @method static static|Builder ofRelationFromRequest($request, string $relation, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
+ * @method static static|Builder ofRelation(string $relation, $key, $value, ?bool $force_or = FALSE)
+ * @method static static|Builder sortFromRequest($request)
+ * @method static static|Builder sort($column_or_array, ?bool $is_descending = FALSE, ?bool $is_nulls_first = FALSE)
  *
  * @author James Carlo S. Luchavez (carlo.luchavez@fourello.com)
  * @since April 27, 2021
@@ -89,7 +89,10 @@ trait GranularSearchableTrait
      */
     public function scopeSearch(Builder $query, $request, ?bool $q_search_relationships = FALSE, ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
     {
-        granular_search()->setInitialModel($this);
+        // Check if initial model is null, set current otherwise
+        if (is_null(granular_search()->getInitialModel())) {
+            granular_search()->setInitialModel($this);
+        }
 
         if(is_request_instance($request)) {
             $request = $request->all();
@@ -106,7 +109,9 @@ trait GranularSearchableTrait
 
         granular_search()->addToMentionedModels($this);
 
-        $query = $query->granularSearch($request, '', $ignore_q, $force_or, $force_like)->ofRelationsFromRequest($request, $q_search_relationships === FALSE ? TRUE : $ignore_q, $force_or, $force_like);
+        $query = $query
+            ->granularSearch($request, NULL, $ignore_q, $force_or, $force_like)
+            ->ofRelationsFromRequest($request, $q_search_relationships === FALSE ? TRUE : $ignore_q, $force_or, $force_like);
 
         if (granular_search()->isInitialModel($this)) {
             granular_search()->clearMentions();
@@ -123,19 +128,19 @@ trait GranularSearchableTrait
     }
 
     /**
-     * Query scope to filter an Eloquent model using Request parameters.
+     *
      *
      * @param Builder $query
      * @param Request|array $request
      * @param string|null $prepend_key
-     * @param bool $ignore_q
-     * @param bool $force_or
-     * @param bool $force_like
+     * @param bool|null $ignore_q
+     * @param bool|null $force_or
+     * @param bool|null $force_like
      * @return Builder|Model
      */
     public function scopeGranularSearch(Builder $query, $request, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE)
     {
-        return granular_search()->search($request, $query, static::getTableName(), static::getGranularExcludedKeys(), static::getGranularLikeKeys(), $prepend_key, $ignore_q ?? FALSE, $force_or ?? FALSE, $force_like ?? FALSE);
+        return granular_search()->search($request, $query, static::getTableName(), static::getGranularExcludedKeys(), static::getGranularLikeKeys(), $prepend_key ?? '', $ignore_q ?? FALSE, $force_or ?? FALSE, $force_like ?? FALSE);
     }
 
     /**
@@ -164,8 +169,8 @@ trait GranularSearchableTrait
                 continue;
             }
 
-            if($related->shoulBeSearched($params, $ignore_q)) {
-                $query = $query->ofRelationFromRequest($params, $relation, '', $ignore_q, $force_or, $force_like);
+            if($related->shouldBeSearched($params, $ignore_q)) {
+                $query = $query->ofRelationFromRequest($params, $relation, NULL, $ignore_q, $force_or, $force_like);
             }
         }
 
@@ -194,7 +199,7 @@ trait GranularSearchableTrait
 
         if(empty($request) === FALSE) {
             $callback = static function (Builder $q) use ($ignore_q, $force_like, $force_or, $request) {
-                $q->search($request, $ignore_q, $force_or, $force_like, FALSE);
+                $q->search($request, !$ignore_q, $ignore_q, $force_or, $force_like);
             };
 
             if (granular_search()->hasQ($request)) {
@@ -205,7 +210,7 @@ trait GranularSearchableTrait
         }
 
         return $query;
-}
+    }
 
     /**
      * Query scope for basic single relation filtering.
@@ -214,10 +219,10 @@ trait GranularSearchableTrait
      * @param string $relation
      * @param array|string $key
      * @param array|string $value
-     * @param bool $force_or
+     * @param bool|null $force_or
      * @return Builder
      */
-    public function scopeOfRelation(Builder $query, string $relation, $key, $value, bool $force_or = FALSE): Builder
+    public function scopeOfRelation(Builder $query, string $relation, $key, $value, ?bool $force_or = FALSE): Builder
     {
         $this->validateRelation($relation);
         $params = [];
@@ -229,13 +234,13 @@ trait GranularSearchableTrait
             $params = [$key => $value];
         }
         return $query->whereHas($relation, function ($q) use ($force_or, $params) {
-            $q->granularSearch($params, '', FALSE, $force_or);
+            $q->granularSearch($params, NULL, FALSE, $force_or);
         });
     }
 
     /**
      * @param Builder $query
-     * @param $request
+     * @param Request|array $request
      * @return Builder
      */
 
@@ -250,7 +255,7 @@ trait GranularSearchableTrait
                         $query = $query->sort($value);
                     }
                     else if (preg_match('/asc|desc/', $value)) {
-                        $query = $query->sort($key, preg_match('/desc/', $value));
+                        $query = $query->sort($key, false !== strpos($value, "desc"));
                     }
                 }
             }
@@ -273,15 +278,24 @@ trait GranularSearchableTrait
      * @param string[]|string $column_or_array
      * @param bool $is_descending
      * @param bool $is_nulls_first
+     * @return Builder
      */
-    public function scopeSort(Builder $query, $column_or_array, bool $is_descending = FALSE, bool $is_nulls_first = FALSE): void
+    public function scopeSort(Builder $query, $column_or_array, ?bool $is_descending = FALSE, ?bool $is_nulls_first = FALSE): Builder
     {
         $column_or_array = Arr::wrap($column_or_array);
-        foreach ($column_or_array as $col) {
-            if(granular_search()->hasColumn(static::getTableName(), $col)){
-                $query = $query->orderByRaw('CASE WHEN ' . $col . ' IS NULL THEN 0 ELSE 1 END ' . ($is_nulls_first ? 'ASC' : 'DESC'))->orderBy($col, $is_descending ? 'desc': 'asc');
-            }
+
+        $columns = collect($column_or_array)->intersect(granular_search()->getTable(static::getTableName()));
+
+        if (is_null($columns)) {
+            return $query;
         }
+
+        // Respect Sequence of Ordering
+        foreach ($columns as $col) {
+            $query = $query->orderByRaw('CASE WHEN ' . $col . ' IS NULL THEN 0 ELSE 1 END ' . ($is_nulls_first ? 'ASC' : 'DESC'))->orderBy($col, $is_descending ? 'desc': 'asc');
+        }
+
+        return $query;
     }
 
     /***** METHODS *****/
@@ -307,6 +321,22 @@ trait GranularSearchableTrait
     }
 
     /**
+     * Validate if the $relation really exists on the Eloquent model.
+     *
+     * @param string $relation
+     */
+    public function validateRelation(string $relation): void
+    {
+        if(in_array($relation, static::getGranularAllowedRelations(), TRUE) === FALSE){
+            throw new RuntimeException($relation . ' is not included in the allowed relations array of ' . static::class);
+        }
+
+        if(static::hasGranularRelation($relation) === FALSE){
+            throw new RuntimeException('The ' . static::class . ' model does not have such relation: ' . $relation);
+        }
+    }
+
+    /**
      * Check for the existence of a relation to an Eloquent model.
      *
      * @param string $relation
@@ -323,29 +353,13 @@ trait GranularSearchableTrait
     }
 
     /**
-     * Validate if the $relation really exists on the Eloquent model.
-     *
-     * @param string $relation
-     */
-    public function validateRelation(string $relation): void
-    {
-        if(in_array($relation, static::$granular_allowed_relations, TRUE) === FALSE){
-            throw new RuntimeException($relation . ' is not included in the allowed relations array of ' . static::class);
-        }
-
-        if(static::hasGranularRelation($relation) === FALSE){
-            throw new RuntimeException('The ' . static::class . ' model does not have such relation: ' . $relation);
-        }
-    }
-
-    /**
      * Check if searching should be done based on request keys.
      *
      * @param array $request
      * @param bool|null $ignore_q
      * @return bool
      */
-    public function shoulBeSearched(array $request, ?bool $ignore_q = FALSE): bool
+    public function shouldBeSearched(array $request, ?bool $ignore_q = FALSE): bool
     {
         // Check if own keys exist
 
@@ -369,7 +383,7 @@ trait GranularSearchableTrait
                 return TRUE;
             }
 
-            if (empty($params) === FALSE && $this->$relation()->getRelated()->shoulBeSearched($params, $ignore_q)) {
+            if (empty($params) === FALSE && $this->$relation()->getRelated()->shouldBeSearched($params, $ignore_q)) {
                 return TRUE;
             }
         }
