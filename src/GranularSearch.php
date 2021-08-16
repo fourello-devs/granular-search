@@ -212,7 +212,7 @@ class GranularSearch
      */
     public function prepareData(array $request, ?array $excluded_keys = [], string $prepend_key = '', bool $ignore_q = FALSE): array
     {
-        if(is_array($request) && (empty($request) || Arr::isAssoc($request)))
+        if((empty($request) || Arr::isAssoc($request)))
         {
             Arr::forget($request, $excluded_keys);
             return $this->extractPrependedKeys($request, $prepend_key, $ignore_q);
@@ -236,7 +236,7 @@ class GranularSearch
 
         $data = array_filter_recursive($data, TRUE, TRUE, TRUE);
 
-        if (empty($prepend_key)) {
+        if (empty(trim($prepend_key))) {
             return $data;
         }
 

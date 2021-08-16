@@ -163,13 +163,7 @@ trait GranularSearchableTrait
 
             $params = granular_search()->extractPrependedKeys($request, $prepend_key, $ignore_q);
 
-            $related = $this->$relation()->getRelated();
-
-            if (count($params) === 1 && granular_search()->isModelMentioned($related) && granular_search()->hasQ($params)) {
-                continue;
-            }
-
-            if($related->shouldBeSearched($params, $ignore_q)) {
+            if ($this->$relation()->getRelated()->shouldBeSearched($params, $ignore_q)) {
                 $query = $query->ofRelationFromRequest($params, $relation, NULL, $ignore_q, $force_or, $force_like);
             }
         }
@@ -191,25 +185,23 @@ trait GranularSearchableTrait
      */
     public function scopeOfRelationFromRequest(Builder $query, $request, string $relation, ?string $prepend_key = '', ?bool $ignore_q = FALSE, ?bool $force_or = FALSE, ?bool $force_like = FALSE): Builder
     {
-        $this->validateRelation($relation);
-
-        $prepend_key = $prepend_key ?? Str::snake(Str::singular($relation));
-
-        $request = granular_search()->extractPrependedKeys($request, $prepend_key, $ignore_q);
-
-        if(empty($request) === FALSE) {
-            $callback = static function (Builder $q) use ($ignore_q, $force_like, $force_or, $request) {
-                $q->search($request, !$ignore_q, $ignore_q, $force_or, $force_like);
-            };
-
-            if (granular_search()->hasQ($request)) {
-                return $query->orWhereHas($relation, $callback);
-            }
-
-            return $query->whereHas($relation, $callback);
+        if (empty(trim($prepend_key)) === FALSE) {
+            $request = granular_search()->extractPrependedKeys($request, $prepend_key, $ignore_q);
         }
 
-        return $query;
+        if (empty($request)) {
+            return $query;
+        }
+
+        $callback = static function (Builder $q) use ($ignore_q, $force_like, $force_or, $request) {
+            $q->search($request, !$ignore_q, $ignore_q, $force_or, $force_like);
+        };
+
+        if (granular_search()->hasQ($request)) {
+            return $query->orWhereHas($relation, $callback);
+        }
+
+        return $query->whereHas($relation, $callback);
     }
 
     /**
@@ -361,12 +353,22 @@ trait GranularSearchableTrait
      */
     public function shouldBeSearched(array $request, ?bool $ignore_q = FALSE): bool
     {
+        $count = count($request);
+
+        if ($count === 0) { // Check if request array is empty
+            return FALSE;
+        }
+
+        else if ($count === 1 && granular_search()->hasQ($request)) { // Check if just a q search and already mentioned
+            return granular_search()->isModelMentioned($this) === FALSE;
+        }
+
         // Check if own keys exist
 
         $prepared_table_keys = static::getPreparedTableKeys();
         $self_keys = array_intersect(array_keys($request), $prepared_table_keys);
 
-        if(empty($self_keys) === FALSE){
+        if (empty($self_keys) === FALSE) {
             return TRUE;
         }
 
@@ -379,11 +381,7 @@ trait GranularSearchableTrait
 
             $params = granular_search()->extractPrependedKeys($request, $prepend_key, $ignore_q);
 
-            if (count($params) === 1 && granular_search()->hasQ($params) && granular_search()->isModelMentioned($this) === FALSE) {
-                return TRUE;
-            }
-
-            if (empty($params) === FALSE && $this->$relation()->getRelated()->shouldBeSearched($params, $ignore_q)) {
+            if ($this->$relation()->getRelated()->shouldBeSearched($params, $ignore_q)) {
                 return TRUE;
             }
         }
