@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use PDO;
 use RuntimeException;
 
 /**
@@ -97,12 +99,15 @@ trait GranularSearchableTrait
         if(is_request_instance($request)) {
             $request = $request->all();
         }
+
         else if(is_string($request)) {
             $request = [granular_search()->getQAlias() => $request];
         }
+
         else if(is_array($request) && Arr::isAssoc($request) === FALSE) {
             $request = [granular_search()->getQAlias() => array_values($request)];
         }
+
         else if(is_bool($request) || is_numeric($request)|| is_null($request)) {
             $request = [granular_search()->getQAlias() => $request];
         }
@@ -276,7 +281,7 @@ trait GranularSearchableTrait
     {
         $column_or_array = Arr::wrap($column_or_array);
 
-        $columns = collect($column_or_array)->intersect(granular_search()->getTable(static::getTableName()));
+        $columns = collect($column_or_array)->intersect(optional(granular_search()->getTable(static::getTableName(), granular_search()->getDatabaseDriver($query)))->keys());
 
         if (is_null($columns)) {
             return $query;
@@ -302,6 +307,11 @@ trait GranularSearchableTrait
         return with(new static)->getTable();
     }
 
+    public static function getDatabaseDriverName()
+    {
+        return with(new static)->getConnection()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
+    }
+
     /**
      * Get Prepared Table Keys
      *
@@ -309,7 +319,7 @@ trait GranularSearchableTrait
      */
     public static function getPreparedTableKeys (): array
     {
-        return granular_search()->prepareTableKeys(static::getTableName(), static::getGranularExcludedKeys());
+        return granular_search()->prepareTableKeys(static::getTableName(), static::getGranularExcludedKeys(), static::getDatabaseDriverName());
     }
 
     /**
@@ -359,8 +369,8 @@ trait GranularSearchableTrait
             return FALSE;
         }
 
-        else if ($count === 1 && granular_search()->hasQ($request)) { // Check if just a q search and already mentioned
-            return granular_search()->isModelMentioned($this) === FALSE;
+        if ($count === 1 && granular_search()->hasQ($request)) { // Check if just a q search and already mentioned
+            return granular_search()->isModelMentioned($this) === FALSE && $this->compareRequestKeysToTableStructure($request);
         }
 
         // Check if own keys exist
@@ -368,7 +378,7 @@ trait GranularSearchableTrait
         $prepared_table_keys = static::getPreparedTableKeys();
         $self_keys = array_intersect(array_keys($request), $prepared_table_keys);
 
-        if (empty($self_keys) === FALSE) {
+        if (empty($self_keys) === FALSE && $this->compareRequestKeysToTableStructure($request)) {
             return TRUE;
         }
 
@@ -381,9 +391,54 @@ trait GranularSearchableTrait
 
             $params = granular_search()->extractPrependedKeys($request, $prepend_key, $ignore_q);
 
-            if ($this->$relation()->getRelated()->shouldBeSearched($params, $ignore_q)) {
+            if (optional($this->$relation())->getRelated()->shouldBeSearched($params, $ignore_q)) {
                 return TRUE;
             }
+        }
+
+        return FALSE;
+    }
+
+    /**
+     * @param array|null $request
+     * @return bool
+     */
+    public function compareRequestKeysToTableStructure(array $request = null): bool
+    {
+        if (empty($request)) {
+            return FALSE;
+        }
+
+        $has_q = granular_search()->hasQ($request);
+
+        $request = granular_search()->prepareData($request, static::getGranularExcludedKeys(), '', $has_q === FALSE);
+
+        $table_structure = granular_search()->getTable(static::getTableName(), static::getDatabaseDriverName());
+
+        if (is_null($table_structure) || $table_structure->isEmpty()) {
+            return FALSE;
+        }
+
+        if ($has_q === FALSE) {
+            $table_structure = $table_structure->only(array_keys($request));
+        }
+
+        foreach ($table_structure as $column => $value) {
+
+            if (is_null($search = Arr::get($request,$column))) {
+                if ($has_q) {
+                    $search = $request[granular_search()->getQAlias()];
+                }
+                else {
+                    continue;
+                }
+            }
+
+            if ($value['is_string'] === FALSE && is_numeric($search) === FALSE) {
+                continue;
+            }
+
+            return TRUE;
         }
 
         return FALSE;

@@ -2,6 +2,9 @@
 
 namespace FourelloDevs\GranularSearch;
 
+use Doctrine\DBAL\Exception;
+use Illuminate\Config\Repository;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -9,8 +12,10 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use PDO;
 use RuntimeException;
 
 /**
@@ -22,14 +27,6 @@ use RuntimeException;
  */
 class GranularSearch
 {
-
-    /**
-     * Alias for q searching
-     *
-     * @var string
-     */
-    protected $q_alias;
-
     /**
      * @var string[]
      */
@@ -41,11 +38,25 @@ class GranularSearch
     protected $initial_model;
 
     /**
+     * @var string|null
+     */
+    protected $table_name = null;
+
+    /**
+     * @var Collection|null
+     */
+    protected $table_structure;
+
+    /**
+     * @var string|null
+     */
+    protected $driver_name = null;
+
+    /**
      * GranularSearch constructor.
      */
     public function __construct()
     {
-        $this->setQAlias('q');
         $this->mentioned_models = [];
         $this->initial_model = null;
     }
@@ -66,8 +77,14 @@ class GranularSearch
      */
     public function search($request, $model, string $table_name, array $excluded_keys = [], array $like_keys = [], string $prepend_key = '', bool $ignore_q = FALSE, bool $force_or = FALSE, bool $force_like = FALSE)
     {
+        $this->driver_name = $model->getConnection()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
         $this->validateRequest($request);
         $this->validateTableName($table_name);
+
+        // Store to field variables
+        $this->table_name = $table_name;
+        $this->table_structure = $this->getTable($this->table_name, $this->getDatabaseDriver($model));
+
         $this->validateExcludedKeys($excluded_keys);
 
         // Always convert $request to Associative Array
@@ -85,7 +102,7 @@ class GranularSearch
 
         $accept_q = !$ignore_q && $this->hasQ($data);
 
-        $table_keys = $this->prepareTableKeys($table_name, $excluded_keys);
+        $table_keys = $this->prepareTableKeys($table_name, $excluded_keys, $this->driver_name);
 
         $like_keys = array_values(array_intersect($like_keys, $table_keys));
 
@@ -102,7 +119,7 @@ class GranularSearch
             // 'LIKE' SEARCHING
             if (empty($like_keys) === FALSE) {
                 // If 'q' is present and is filled, proceed with all-column search
-                if($accept_q){
+                if ($accept_q) {
                     $search = $data[$this->getQAlias()];
                     foreach ($like_keys as $col) {
                         $value = request_or_array_get($data, $col, $search);
@@ -138,7 +155,7 @@ class GranularSearch
             }
 
             // 'EXACT' SEARCHING
-            if($accept_q){
+            if ($accept_q) {
                 $search = $data[$this->getQAlias()];
                 foreach ($exact_keys as $col) {
                     $value = request_or_array_get($data, $col, $search);
@@ -191,12 +208,48 @@ class GranularSearch
     public function getDatabaseStructure(): Collection
     {
         return Cache::rememberForever('granular_tables', function () {
-            $structure = collect();
-            foreach (DB::connection()->getDoctrineSchemaManager()->listTableNames() as $table) {
-                $structure->put($table, collect(Schema::getColumnListing($table)));
+            $allStructures = collect();
+
+            // Register Unknown Column Types as String instead to mitigate unknown type errors
+            $this->registerDatabaseSpecialColumns();
+
+            foreach (config('granular-search.database.allowed_connections') as $connection) {
+                $manager = DB::connection($connection)->getDoctrineSchemaManager();
+                $structure = collect();
+
+                foreach ($manager->listTableNames() as $table) {
+                    $columnsAndTypes = [];
+
+                    $schemaBuilder = DB::connection()->getSchemaBuilder();
+                    foreach (Schema::getColumnListing($table) as $column) {
+                        // Solution for this issue: https://github.com/laravel/framework/issues/5254
+                        // If getColumnType() throws an error, add the column name to 'special_columns_error_mapping' array on the config
+                        $type = $schemaBuilder->getColumnType($table, $column);
+                        $columnsAndTypes[$column] = [
+                            'type' => $type,
+                            'is_string' => ! in_array($type, config('granular-search.database.non_string_columns'), true),
+                        ];
+                    }
+                    $structure->put($table, collect($columnsAndTypes));
+                }
+
+                $allStructures->put($connection, $structure);
             }
-            return $structure;
+            return $allStructures;
         });
+    }
+
+    /**
+     * @param Model|Builder|\Illuminate\Database\Query\Builder|null $query
+     * @return Repository|Application|mixed|string
+     */
+    public function getDatabaseDriver($query = null)
+    {
+        if ($query) {
+            return $query->getConnection()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
+        }
+
+        return $this->driver_name ?? config('database.default');
     }
 
     /***** METHODS *****/
@@ -236,7 +289,7 @@ class GranularSearch
 
         $data = array_filter_recursive($data, TRUE, TRUE, TRUE);
 
-        if (empty(trim($prepend_key))) {
+        if (! $ignore_q && empty(trim($prepend_key))) {
             return $data;
         }
 
@@ -245,7 +298,7 @@ class GranularSearch
         }
 
         $result = [];
-        $prepend = $prepend_key . '_';
+        $prepend = empty($prepend_key) ? null : $prepend_key . '_';
 
         foreach ($data as $key=>$value) {
 
@@ -255,9 +308,9 @@ class GranularSearch
                 continue;
             }
 
-            if(Str::startsWith($key, $prepend)) {
-                $key = Str::after($key, $prepend);
-                if($ignore_q && $key === $this->getQAlias()) {
+            if(is_null($prepend) || Str::startsWith($key, $prepend)) {
+                $key = is_null($prepend) ? $key : Str::after($key, $prepend);
+                if($ignore_q && Str::is($this->getQAlias(), $key)) {
                     continue;
                 }
                 $result[$key] = $value;
@@ -275,12 +328,13 @@ class GranularSearch
      *
      * @param string $table_name
      * @param array|null $excluded_keys
+     * @param string|null $database_driver
      * @return array
      */
-    public function prepareTableKeys(string $table_name, ?array $excluded_keys = []): array
+    public function prepareTableKeys(string $table_name, ?array $excluded_keys = [], string $database_driver = null): array
     {
-        if ($t = $this->getTable($table_name)) {
-            return array_values(array_diff($t->toArray(), $excluded_keys));
+        if ($t = $this->getTable($table_name, $database_driver)) {
+            return array_values(array_diff($t->keys()->toArray(), $excluded_keys));
         }
 
         return [];
@@ -318,7 +372,7 @@ class GranularSearch
     public function validateExcludedKeys(array $excluded_keys): void
     {
         if(Arr::isAssoc($excluded_keys)) {
-            throw new RuntimeException('$excluded_keys must be a sequential array, not an associative one.');
+            throw new RuntimeException('Excluded keys must be a sequential array, not associative.');
         }
     }
 
@@ -344,27 +398,33 @@ class GranularSearch
      *
      * @param Builder $query
      * @param string $col
-     * @param string|null|bool $str
+     * @param string|bool|int|null $search
      * @param bool|null $is_like_search
      * @param string|null $boolean
      */
-    public function setWhereCondition(Builder $query, string $col, $str, ?bool $is_like_search = FALSE, ?string $boolean = 'and'): void
+    protected function setWhereCondition(Builder $query, string $col, $search, ?bool $is_like_search = FALSE, ?string $boolean = 'and'): void
     {
-        if (is_null($str)) {
+        // Cancel if search key is a string while column is non-string to avoid unexpected results
+        if (is_numeric($search) === FALSE && $this->table_structure->get($col)['is_string'] === FALSE) {
+            return;
+        }
+
+        if (is_null($search)) {
             $query->whereRaw(implode(' ', [$col, 'IS', 'NULL']), [], $boolean);
             return;
         }
 
-        if (is_bool($str)) {
-            $query->whereRaw(implode(' ', [$col, '=', (int) $str]), [], $boolean);
+        if (is_bool($search)) {
+            $query->whereRaw(implode(' ', [$col, '=', (int) $search]), [], $boolean);
             return;
         }
 
         $operator = $is_like_search ? 'LIKE' : '=';
-        $str = $is_like_search ? $this->getLikeString($str) : $str;
 
-        if (empty($str) === FALSE) {
-            $query->whereRaw(implode(' ', [$col, $operator, '?']), [$str], $boolean);
+        $search = $is_like_search ? $this->getLikeString($search) : $search;
+
+        if (empty($search) === FALSE) {
+            $query->whereRaw(implode(' ', [$col, $operator, '?']), [$search], $boolean);
         }
     }
 
@@ -388,17 +448,7 @@ class GranularSearch
      */
     public function getQAlias(): string
     {
-        return $this->q_alias;
-    }
-
-    /**
-     * Set Q Alias
-     *
-     * @param string $q_alias
-     */
-    public function setQAlias(string $q_alias): void
-    {
-        $this->q_alias = $q_alias;
+        return config('granular-search.q_alias');
     }
 
     /**
@@ -430,7 +480,7 @@ class GranularSearch
     }
 
     /**
-     * Add model to mentions.
+     * Add model to mentioned models.
      *
      * @param mixed $object_or_class
      */
@@ -496,22 +546,26 @@ class GranularSearch
      * Check if a database table exists.
      *
      * @param string $table
+     * @param string|null $database_driver
      * @return bool
      */
-    public function hasTable(string $table): bool
+    public function hasTable(string $table, string $database_driver = null): bool
     {
-        return $this->getDatabaseStructure()->has($table);
+        return is_null($this->getTable($table, $database_driver)) === FALSE;
     }
 
     /**
      * Get table structure.
      *
      * @param string $table
+     * @param string|null $database_driver
      * @return Collection|null
      */
-    public function getTable(string $table): ?Collection
+    public function getTable(string $table, string $database_driver = null): ?Collection
     {
-        return $this->getDatabaseStructure()->get($table);
+        $database = $this->getDatabaseStructure()->get($database_driver ?? $this->getDatabaseDriver());
+
+        return $database instanceof Collection ? $database->get($table) : null;
     }
 
     /**
@@ -519,10 +573,25 @@ class GranularSearch
      *
      * @param string $table
      * @param string $column
+     * @param string|null $database_driver
      * @return bool
      */
-    public function hasColumn(string $table, string $column): bool
+    public function hasColumn(string $table, string $column, string $database_driver = null): bool
     {
-        return ($t = $this->getDatabaseStructure()->get($table)) && $t instanceof Collection && $t->contains($column);
+        return ($t = $this->getTable($table, $database_driver)) && $t instanceof Collection && $t->has($column);
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function registerDatabaseSpecialColumns(): void
+    {
+        foreach (config('granular-search.database.special_columns_error_mapping') as $database => $columns) {
+            $platform = DB::connection($database)->getDoctrineSchemaManager()->getDatabasePlatform();
+
+            foreach ($columns as $column => $type) {
+                $platform->registerDoctrineTypeMapping($column, $type);
+            }
+        }
     }
 }
