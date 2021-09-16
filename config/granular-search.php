@@ -13,6 +13,7 @@ return [
                 'enum' => 'string',
                 'geometry' => 'float',
                 'geometrycollection' => 'float',
+                'geomcollection' => 'float',
                 'point' => 'float',
                 'multipoint' => 'float',
                 'polygon' => 'float',

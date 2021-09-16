@@ -423,9 +423,7 @@ class GranularSearch
 
         $search = $is_like_search ? $this->getLikeString($search) : $search;
 
-        if (empty($search) === FALSE) {
-            $query->whereRaw(implode(' ', [$col, $operator, '?']), [$search], $boolean);
-        }
+        $query->whereRaw(implode(' ', [$col, $operator, '?']), [$search], $boolean);
     }
 
     /**
